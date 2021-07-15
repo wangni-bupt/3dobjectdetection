@@ -2,6 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.a3dobjectdetection">
 
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- Limits app visibility in the Google Play Store to ARCore supported devices
+         (https://developers.google.com/ar/devices). -->
+    <uses-feature android:name="android.hardware.camera.ar" />
+    <!-- opengl es的版本，这里使用的是2.0 -->
+    <uses-feature android:glEsVersion="0x00020000" android:required="true" />
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -9,13 +17,20 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.3dobjectdetection">
-        <activity android:name=".MainActivity">
+        <!-- orientation|screenSize Android横竖屏幕切换时注意4.0以上配置configChanges要加上screenSize，要不还会调用onCreate-->
+        <!-- locked 将方向锁定在其当前的任意旋转方向。-->
+        <activity android:name=".MainActivity"
+            android:configChanges="orientation|screenSize"
+            android:screenOrientation="locked">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- "AR Required" app, requires "Google Play Services for AR" (ARCore)
+         to be installed, as the app does not include any non-AR features. -->
+        <meta-data android:name="com.google.ar.core" android:value="required" />
     </application>
 
 </manifest>
