@@ -32,6 +32,23 @@ public class SnackbarHelper {
         show(activity, errorMessage, DismissBehavior.FINISH);
     }
 
+    //隐藏当前snackbar
+    public void hide(Activity activity) {
+        if (!isShowing()) {
+            return;
+        }
+        lastMessage = "";
+        Snackbar messageSnackbarToHide = messageSnackbar;
+        messageSnackbar = null;
+        activity.runOnUiThread(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        messageSnackbarToHide.dismiss();
+                    }
+                });
+    }
+
     private void show(
             final Activity activity, final String message, final DismissBehavior dismissBehavior) {
         activity.runOnUiThread(
