@@ -24,11 +24,11 @@
         android:theme="@style/Theme.3dobjectdetection"
         tools:ignore="GoogleAppIndexingWarning">
         <activity android:name=".Activity.OpenCVTestActivity">
-        <intent-filter>
-            <action android:name="android.intent.action.MAIN" />
+<!--            <intent-filter>-->
+<!--                <action android:name="android.intent.action.MAIN" />-->
 
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent-filter>
+<!--                <category android:name="android.intent.category.LAUNCHER" />-->
+<!--            </intent-filter>-->
         </activity>
         <!-- orientation|screenSize Android横竖屏幕切换时注意4.0以上配置configChanges要加上screenSize，要不还会调用onCreate -->
         <!-- locked 将方向锁定在其当前的任意旋转方向。 -->
@@ -36,11 +36,11 @@
             android:name=".Activity.MainActivity"
             android:configChanges="orientation|screenSize"
             android:screenOrientation="locked">
-<!--            <intent-filter>-->
-<!--                <action android:name="android.intent.action.MAIN" />-->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
 
-<!--                <category android:name="android.intent.category.LAUNCHER" />-->
-<!--            </intent-filter>-->
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
         </activity>
         <!--
  "AR Required" app, requires "Google Play Services for AR" (ARCore)
