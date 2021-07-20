@@ -13,6 +13,10 @@ import org.opencv.core.Point3;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Vector;
 
@@ -42,6 +46,28 @@ public class FileHelper {
             e.printStackTrace();
         }
         return false;
+    }
+
+    public FloatBuffer getTxtFromAssets(AssetManager assetManager, String fileName) {
+        FloatBuffer floatBuffer= ByteBuffer.allocateDirect(96).order(ByteOrder.nativeOrder())
+                .asFloatBuffer();
+        try {
+            InputStream inputStream =assetManager.open(fileName);
+            InputStreamReader inputReader = new InputStreamReader(inputStream);
+            BufferedReader bufReader = new BufferedReader(inputReader);
+            String line = "";
+            while ((line = bufReader.readLine()) != null) {
+                String[] tokens = line.split(" ");
+                floatBuffer.put(Float.parseFloat(tokens[0]));
+                floatBuffer.put(Float.parseFloat(tokens[1]));
+                floatBuffer.put(Float.parseFloat(tokens[2]));
+            }
+            return floatBuffer;
+        } catch (Exception e) {
+            Log.e(TAG, "读取txt文件出错");
+            e.printStackTrace();
+        }
+        return null;
     }
 
     public boolean getTxtFromAssetsToMat(AssetManager assetManager, String fileName,

@@ -21,6 +21,7 @@ import com.example.a3dobjectdetection.R;
 import com.example.a3dobjectdetection.Render.BackgroundRenderer;
 import com.example.a3dobjectdetection.Render.Framebuffer;
 import com.example.a3dobjectdetection.Render.GLError;
+import com.example.a3dobjectdetection.Render.GpuBuffer;
 import com.example.a3dobjectdetection.Render.Mesh;
 import com.example.a3dobjectdetection.Render.SampleRender;
 import com.example.a3dobjectdetection.Render.Shader;
@@ -49,6 +50,8 @@ import org.opencv.android.OpenCVLoader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Vector;
 
@@ -56,8 +59,7 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
     private static final String TAG = MainActivity.class.getSimpleName();
     //用于特征检测和匹配的相关变量
     public static final String FILE_ENCODING = "UTF-8";
-    private Vector<Vector<Double>> pointcoordinates;
-    private Vector<Double> descriptions ;
+    private FloatBuffer vectrics;
     private FileHelper fileHelper;
     private BaseLoaderCallback mLoaderCallback;
 
@@ -77,6 +79,11 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
     private Mesh pointCloudMesh;
     private Shader pointCloudShader;
     private long lastPointCloudTimestamp = 0;
+
+    //cube
+    private VertexBuffer cubeVertexBuffer;
+    private Mesh cubeMesh;
+    private Shader cubeShader;
 
     private boolean hasSetTextureNames = false;
     private TrackingStateHelper trackingStateHelper;
@@ -101,8 +108,6 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        pointcoordinates = new Vector<>();
-        descriptions = new Vector<>();
         fileHelper=new FileHelper();
 
 
@@ -117,13 +122,9 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
 
         //加载特征信息文件
         AssetManager assetManager = getResources().getAssets();
-        if (fileHelper.getTxtFromAssets(assetManager,"3D-x.txt",pointcoordinates,descriptions)) {
-            snackbarHelper.showMessage(this,"文件读取成功");
-            Log.i(TAG, "文件读取成功");
-            //Log.i(TAG, String.valueOf(pointcoordinates.size()));
-            //Log.i(TAG, String.valueOf(descriptions.size()));
-        }
-        //判断opencv是否加载
+        vectrics=fileHelper.getTxtFromAssets(assetManager,"v.txt");
+
+        //判断opencv是否加
         mLoaderCallback = new BaseLoaderCallback(this) {
             @Override
             public void onManagerConnected(int status) {
@@ -252,7 +253,20 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
             pointCloudMesh =
                     new Mesh(
                             render, Mesh.PrimitiveMode.POINTS, /*indexBuffer=*/ null, pointCloudVertexBuffers);
+            //cube
+            cubeShader=Shader.createFromAssets(
+                    render, "shaders/cube.vert", "shaders/cube.frag", /*defines=*/ null)
+                    .setVec4(
+                            "u_Color", new float[] {31.0f / 255.0f, 188.0f / 255.0f, 210.0f / 255.0f, 1.0f})
+                    .setFloat("u_PointSize", 20.0f);
 
+            cubeVertexBuffer =
+                    new VertexBuffer(render, /*numberOfEntriesPerVertex=*/ 3, /*entries=*/ vectrics);
+
+            final VertexBuffer[] cubeVertexBuffers = {cubeVertexBuffer};
+            cubeMesh =
+                    new Mesh(
+                            render, Mesh.PrimitiveMode.POINTS, /*indexBuffer=*/ null, cubeVertexBuffers);
 
         } catch (IOException e) {
             Log.e(TAG, "Failed to read a required asset file", e);
@@ -380,6 +394,9 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
             pointCloudShader.setMat4("u_ModelViewProjection", modelViewProjectionMatrix);
             render.draw(pointCloudMesh, pointCloudShader);
         }
+        //if(vectrics.isDirect()) Log.e(TAG," sdf");
+        cubeShader.setMat4("u_ModelViewProjection", modelViewProjectionMatrix);
+        render.draw(cubeMesh, cubeShader);
 
     }
     private void configureSession() {
