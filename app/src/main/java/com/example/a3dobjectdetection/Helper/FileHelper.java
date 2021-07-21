@@ -70,6 +70,29 @@ public class FileHelper {
         return null;
     }
 
+    public float[] getTxtFromAssetsFloat(AssetManager assetManager, String fileName) {
+        float[] floats=new float[24];
+        try {
+            InputStream inputStream =assetManager.open(fileName);
+            InputStreamReader inputReader = new InputStreamReader(inputStream);
+            BufferedReader bufReader = new BufferedReader(inputReader);
+            String line = "";
+            int i=0;
+            while ((line = bufReader.readLine()) != null) {
+                String[] tokens = line.split(" ");
+                floats[i++]=Float.parseFloat(tokens[0]);
+                floats[i++]=Float.parseFloat(tokens[1]);
+                floats[i++]=Float.parseFloat(tokens[2]);
+            }
+            //Log.e(TAG, String.valueOf(floats[23]));
+            return floats;
+        } catch (Exception e) {
+            Log.e(TAG, "读取txt文件出错");
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     public boolean getTxtFromAssetsToMat(AssetManager assetManager, String fileName,
                                          List<Point3> pointcoordinates, List<Float> descriptions) {
         try {

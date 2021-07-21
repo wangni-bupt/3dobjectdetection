@@ -50,6 +50,7 @@ import org.opencv.android.OpenCVLoader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -59,7 +60,6 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
     private static final String TAG = MainActivity.class.getSimpleName();
     //用于特征检测和匹配的相关变量
     public static final String FILE_ENCODING = "UTF-8";
-    private FloatBuffer vectrics;
     private FileHelper fileHelper;
     private BaseLoaderCallback mLoaderCallback;
 
@@ -84,6 +84,8 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
     private VertexBuffer cubeVertexBuffer;
     private Mesh cubeMesh;
     private Shader cubeShader;
+    private FloatBuffer vectrics;
+    private float[] vec;
 
     private boolean hasSetTextureNames = false;
     private TrackingStateHelper trackingStateHelper;
@@ -122,7 +124,8 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
 
         //加载特征信息文件
         AssetManager assetManager = getResources().getAssets();
-        vectrics=fileHelper.getTxtFromAssets(assetManager,"v.txt");
+        //vectrics=fileHelper.getTxtFromAssets(assetManager,"v.txt");
+        vec=fileHelper.getTxtFromAssetsFloat(assetManager,"vv.txt");
 
         //判断opencv是否加
         mLoaderCallback = new BaseLoaderCallback(this) {
@@ -258,15 +261,29 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
                     render, "shaders/cube.vert", "shaders/cube.frag", /*defines=*/ null)
                     .setVec4(
                             "u_Color", new float[] {31.0f / 255.0f, 188.0f / 255.0f, 210.0f / 255.0f, 1.0f})
-                    .setFloat("u_PointSize", 20.0f);
-
+                    .setFloat("u_PointSize", 100.0f);
+            FloatBuffer floatBuffer= ByteBuffer.allocateDirect(72*4).order(ByteOrder.nativeOrder())
+                    .asFloatBuffer();
+            floatBuffer.put(new float[]{vec[0],vec[1],vec[2],vec[3],vec[4],vec[5],
+                    vec[3],vec[4],vec[5],vec[9],vec[10],vec[11],
+                    vec[9],vec[10],vec[11],vec[6],vec[7],vec[8],
+                    vec[6],vec[7],vec[8],vec[0],vec[1],vec[2],
+                    vec[12],vec[13],vec[14],vec[15],vec[16],vec[17],
+                    vec[15],vec[16],vec[17],vec[21],vec[22],vec[23],
+                    vec[21],vec[22],vec[23],vec[18],vec[19],vec[20],
+                    vec[18],vec[19],vec[20],vec[12],vec[13],vec[14],
+                    vec[0],vec[1],vec[2],vec[12],vec[13],vec[14],
+                    vec[3],vec[4],vec[5],vec[15],vec[16],vec[17],
+                    vec[6],vec[7],vec[8],vec[18],vec[19],vec[20],
+                    vec[9],vec[10],vec[11],vec[21],vec[22],vec[23]
+                    });
             cubeVertexBuffer =
-                    new VertexBuffer(render, /*numberOfEntriesPerVertex=*/ 3, /*entries=*/ vectrics);
+                    new VertexBuffer(render, /*numberOfEntriesPerVertex=*/ 3, /*entries=*/ floatBuffer);
 
             final VertexBuffer[] cubeVertexBuffers = {cubeVertexBuffer};
             cubeMesh =
                     new Mesh(
-                            render, Mesh.PrimitiveMode.POINTS, /*indexBuffer=*/ null, cubeVertexBuffers);
+                            render, Mesh.PrimitiveMode.LINES, /*indexBuffer=*/ null, cubeVertexBuffers);
 
         } catch (IOException e) {
             Log.e(TAG, "Failed to read a required asset file", e);

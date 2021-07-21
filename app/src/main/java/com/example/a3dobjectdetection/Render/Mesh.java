@@ -47,6 +47,8 @@ public class Mesh implements Closeable {
         this.indexBuffer = indexBuffer;
         this.vertexBuffers = vertexBuffers;
 
+        GLES30.glLineWidth( 3f );
+
         try {
             // Create vertex array
             GLES30.glGenVertexArrays(1, vertexArrayId, 0);//创建一个顶点数组
@@ -59,9 +61,11 @@ public class Mesh implements Closeable {
             if (indexBuffer != null) {
                 GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, indexBuffer.getBufferId());//绑定缓存
             }
-
+            Log.e(TAG, String.valueOf(primitiveMode));
+            Log.e(TAG, String.valueOf(vertexBuffers.length));
             for (int i = 0; i < vertexBuffers.length; ++i) {
                 // Bind each vertex buffer to vertex array
+
                 GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, vertexBuffers[i].getBufferId());//绑定缓存
                 GLError.maybeThrowGLException("Failed to bind vertex buffer", "glBindBuffer");
                 GLES30.glVertexAttribPointer(//指定顶点i属性
@@ -88,6 +92,7 @@ public class Mesh implements Closeable {
         if (indexBuffer == null) {
             // Sanity check for debugging
             int numberOfVertices = vertexBuffers[0].getNumberOfVertices();
+            //Log.e(TAG, String.valueOf(vertexBuffers.length));
             for (int i = 1; i < vertexBuffers.length; ++i) {
                 if (vertexBuffers[i].getNumberOfVertices() != numberOfVertices) {
                     throw new IllegalStateException("Vertex buffers have mismatching numbers of vertices");
