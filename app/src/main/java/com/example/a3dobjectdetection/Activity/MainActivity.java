@@ -26,12 +26,15 @@ import com.example.a3dobjectdetection.Render.Mesh;
 import com.example.a3dobjectdetection.Render.SampleRender;
 import com.example.a3dobjectdetection.Render.Shader;
 import com.example.a3dobjectdetection.Render.VertexBuffer;
+import com.example.a3dobjectdetection.Tools.DectectorTool;
+import com.example.a3dobjectdetection.Tools.MatrixTool;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.ArCoreApk;
 import com.google.ar.core.Camera;
 import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
 import com.google.ar.core.PointCloud;
+import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
 import com.google.ar.core.TrackingFailureReason;
 import com.google.ar.core.TrackingState;
@@ -46,6 +49,8 @@ import com.google.ar.core.exceptions.UnavailableUserDeclinedInstallationExceptio
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -86,6 +91,9 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
     private Shader cubeShader;
     private FloatBuffer vectrics;
     private float[] vec;
+    private VertexBuffer objectVertexBuffer;
+    private Mesh objectMesh;
+    private Shader objectShader;
 
     private boolean hasSetTextureNames = false;
     private TrackingStateHelper trackingStateHelper;
@@ -106,6 +114,11 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
     private static final float Z_NEAR = 0.1f;
     private static final float Z_FAR = 100f;
 
+    //特征检测
+    private DectectorTool dectectorTool;
+    private AssetManager assetManager;
+    private  Anchor anchor;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -122,10 +135,11 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
         surfaceView = findViewById(R.id.surfaceview);
         sampleRender = new SampleRender(surfaceView, this, getAssets());
 
-        //加载特征信息文件
-        AssetManager assetManager = getResources().getAssets();
-        //vectrics=fileHelper.getTxtFromAssets(assetManager,"v.txt");
-        vec=fileHelper.getTxtFromAssetsFloat(assetManager,"vv.txt");
+        //加载顶点
+        assetManager = getResources().getAssets();
+        vectrics=fileHelper.getTxtFromAssets(assetManager,"3D-scale-point.txt");
+        vec=fileHelper.getTxtFromAssetsFloat(assetManager,"v.txt");
+
 
         //判断opencv是否加
         mLoaderCallback = new BaseLoaderCallback(this) {
@@ -155,6 +169,7 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
             session.pause();
             displayRotationHelper.onPause();
         }
+        dectectorTool.onThreadPause();
     }
 
     @Override
@@ -189,6 +204,8 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
                 }
                 // 创建一个session
                 session = new Session(/* context= */ this);
+                dectectorTool=new DectectorTool(fileHelper,assetManager,"3D-scale.txt",session);
+                dectectorTool.start();
             } catch (UnavailableArcoreNotInstalledException
                     | UnavailableUserDeclinedInstallationException e) {
                 message = "Please install ARCore";
@@ -227,7 +244,7 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
             session = null;
             return;
         }
-
+        dectectorTool.onThreadResume();
         surfaceView.onResume();//恢复呈现线程，必要时重新创建OpenGL上下文
         displayRotationHelper.onResume();
     }
@@ -285,6 +302,20 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
                     new Mesh(
                             render, Mesh.PrimitiveMode.LINES, /*indexBuffer=*/ null, cubeVertexBuffers);
 
+            objectShader=Shader.createFromAssets(
+                    render, "shaders/object.vert", "shaders/object.frag", /*defines=*/ null)
+                    .setVec4(
+                            "u_Color", new float[] {31.0f / 255.0f, 188.0f / 255.0f, 210.0f / 255.0f, 1.0f})
+                    .setFloat("u_PointSize", 20.0f);
+            objectVertexBuffer =
+                    new VertexBuffer(render, /*numberOfEntriesPerVertex=*/ 3, /*entries=*/ vectrics);
+
+            final VertexBuffer[] objectVertexBuffers = {objectVertexBuffer};
+            objectMesh =
+                    new Mesh(
+                            render, Mesh.PrimitiveMode.POINTS, /*indexBuffer=*/ null, objectVertexBuffers);
+
+
         } catch (IOException e) {
             Log.e(TAG, "Failed to read a required asset file", e);
             snackbarHelper.showError(this, "Failed to read a required asset file: " + e);
@@ -302,7 +333,7 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
             session.close();
             session = null;
         }
-
+        dectectorTool.isClose();
         super.onDestroy();
     }
 
@@ -344,6 +375,8 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
             return;
         }
         Camera camera = frame.getCamera();
+//        Log.e(TAG,"pose"+camera.getPose().toString());
+//        Log.e(TAG,"pose"+camera().toString());
 
         // Update BackgroundRenderer state .
         try {
@@ -356,7 +389,7 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
         // BackgroundRenderer.updateDisplayGeometry must be called every frame to update the coordinates
         // used to draw the background camera image.BackgroundRenderer。updateDisplayGeometry必须在每一帧调用，以更新用于绘制背景摄像机图像的坐标。
         backgroundRenderer.updateDisplayGeometry(frame);
-
+        //Log.e(TAG, String.valueOf(dectectorTool.isReco()));
 
         //在跟踪时保持屏幕解锁，但在跟踪停止时允许它锁定
         // Keep the screen unlocked while tracking, but allow it to lock when tracking stops.
@@ -399,6 +432,250 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
 
         // Get camera matrix and draw.获取相机矩阵？
         camera.getViewMatrix(viewMatrix, 0);
+//        Log.e(TAG, String.valueOf(camera.getPose()));
+//        Log.e(TAG, String.valueOf(camera.getDisplayOrientedPose()));
+//        for(int i=0;i<16;i++){
+//            Log.e(TAG, String.valueOf(viewMatrix[i]));
+//        }
+
+
+//        float[] displayque=camera.getDisplayOrientedPose().getRotationQuaternion();
+//        float[] displayt=camera.getDisplayOrientedPose().getTranslation();
+//
+//        MatrixTool.floattofloat(MatrixTool.queutoMatrix(displayque),displayt,displaypose);
+
+//        float[] pos=new float[16];
+//        float[] posque=camera.getPose().getRotationQuaternion();
+//        float[] posquet=camera.getPose().getTranslation();
+//        MatrixTool.floattofloat(MatrixTool.queutoMatrix(posque),posquet,pos);
+//        for(int i=0;i<16;i++){
+//            Log.e(TAG, String.valueOf(displaypose[i]));
+//        }
+        //Log.e(TAG,camera.getDisplayOrientedPose().toString());
+
+//        Log.e(TAG, "displaypose");
+//        for(int i=0;i<16;i+=4){
+//            Log.e(TAG, displaypose[i]+" "+displaypose[i+1]+" "+displaypose[i+2]+" "+displaypose[i+3]);
+//        }
+//        Log.e(TAG, "pos");
+//        for(int i=0;i<16;i+=4){
+//            Log.e(TAG, pos[i]+" "+pos[i+1]+" "+pos[i+2]+" "+pos[i+3]);
+//        }
+
+
+        if(!dectectorTool.isAlreadyreco()&&dectectorTool.isReco()){
+//            float[] a=new float[16];
+//            Matrix.multiplyMM(a, 0, MatrixTool.floattomattofloat(viewMatrix), 0, dectectorTool.getRT(), 0);
+//            for(int i=0;i<16;i++){
+//                Log.e(TAG, String.valueOf(viewMatrix[i]));
+//                Log.e(TAG,"当前viewmatrix的逆"+MatrixTool.floattomattofloat(viewMatrix)[i]);
+//            }
+//            Pose pose=camera.getDisplayOrientedPose();
+//
+//            float[] r=MatrixTool.queutoMatrix(pose.getRotationQuaternion());
+//            //Log.e(TAG, String.valueOf(r.length));
+//            Mat mat=new Mat(3,3, CvType.CV_32FC1);
+//            mat.put(0,0,r);
+//            //Log.e(TAG,mat.toString());
+//            float[] r_=MatrixTool.matTofloat(mat.t());
+//            float[] t= pose.getTranslation();
+//            float[] dd=new float[16];
+//            MatrixTool.floattofloat(r_,t,dd);
+//            Matrix.multiplyMM(a, 0, dd, 0, dectectorTool.getViewMatrix(), 0);
+//            float[] t_=MatrixTool.gettranslate(a);
+//            float[] r_last=MatrixTool.getRotation(a);
+//            Mat mat_=new Mat(3,3,CvType.CV_32FC(1));
+//            mat_.put(0,0,r_last);
+//            Mat mat_t=new Mat(3,1,CvType.CV_32FC(1));
+//            mat_t.put(0,0,t_);
+//            Mat mat2=new Mat();
+//            Mat mattranspose=mat_.t();
+//
+//            float[][] transpose=MatrixTool.matTofloattwo(mattranspose);
+//            float[][] td=MatrixTool.matTofloattwo(mat_t);
+//
+//            float[][] result= MatrixTool.BruteForce(transpose,td);
+//            float[] t_x=new float[3];
+//            for(int i=0;i<result.length;i++){
+//                for(int j=0;j<result[0].length;j++){
+//                    t_x[i]=-result[i][j];
+//                    Log.e(TAG,"anchore位置："+t_x[i]);
+//                }
+//            }
+
+//            anchor=session.createAnchor(new Pose(t_x,r_last));
+            dectectorTool.setAlreadyreco(true);
+            Log.e(TAG,"第一次识别到");
+
+
+
+            float[] rot=new float[]{1,0,0,0,
+                    0,-1,0,0
+                    ,0,0,-1,0
+                    ,0,0,0,1};
+            float[] zx=new float[]{0,-1,0,0,
+                    1,0,0,0
+                    ,0,0,1,0
+                    ,0,0,0,1};
+            float[] zx3=new float[16];
+            //Matrix.multiplyMM要反过来用
+            Matrix.multiplyMM(modelMatrix,0,dectectorTool.getRT(),0,rot,0 );
+            //Matrix.multiplyMM(modelMatrix,0,zx3,0,zx,0 );
+            float[] a=new float[16];
+            for(int i=0,j=0;j<4;i+=4,j++){
+                a[i]=modelMatrix[j];
+                a[i+1]=modelMatrix[j+4];
+                a[i+2]=modelMatrix[j+8];
+                a[i+3]=modelMatrix[j+12];
+            }
+            float[] displaypose=new float[16];
+            camera.getDisplayOrientedPose().toMatrix(displaypose,0);
+            Log.e(TAG, "displaypose");
+//            Log.e(TAG,camera.getDisplayOrientedPose().toString());
+            for(int i=0;i<4;i++){
+                Log.e(TAG, displaypose[i]+" "+displaypose[i+4]+" "+displaypose[i+8]+" "+displaypose[i+12]);
+            }
+            float[] b=new float[16];
+            Matrix.multiplyMM(b, 0,displaypose, 0,a, 0);
+            Log.e(TAG, "b");
+            for(int i=0;i<4;i++){
+                Log.e(TAG, b[i]+" "+b[i+4]+" "+b[i+8]+" "+b[i+12]);
+            }
+
+//            for(int i=0;i<16;i++){
+//                Log.e(TAG, i+" "+String.valueOf(a[i]));
+//            }
+
+//            float[] r=MatrixTool.getRotation(a);
+//            float[] t= MatrixTool.gettranslate(a);
+//            Mat mat_=new Mat(3,3,CvType.CV_32FC(1));
+//            mat_.put(0,0,r);
+//            Mat mat_t=new Mat(3,1,CvType.CV_32FC(1));
+//            mat_t.put(0,0,t);
+//            Mat mat2=new Mat();
+//            Mat mattranspose=mat_.t();
+//
+//            float[][] transpose=MatrixTool.matTofloattwo(mattranspose);
+//            float[][] td=MatrixTool.matTofloattwo(mat_t);
+//
+//            float[][] result= MatrixTool.BruteForce(transpose,td);
+//            float[] t_x=new float[3];
+//            for(int i=0;i<result.length;i++){
+//                for(int j=0;j<result[0].length;j++){
+//                    t_x[i]=-result[i][j];
+//                    Log.e(TAG,"anchore位置："+t_x[i]);
+//                }
+//            }
+            //anchor=session.createAnchor(new Pose(MatrixTool.gettranslate(a),MatrixTool.rotationtoquen(a)));
+            //anchor=session.createAnchor(new Pose(new float[]{0,0,-0.2f},new float[]{1,1,0,0}));
+            //anchor=session.createAnchor(new Pose(t_x,MatrixTool.rotationtoquen(a)));
+
+            float[] bx=new float[16];
+            for(int i=0,j=0;j<4;i+=4,j++){
+                bx[i]=b[j];
+                bx[i+1]=b[j+4];
+                bx[i+2]=b[j+8];
+                bx[i+3]=b[j+12];
+            }
+
+            Log.e(TAG, "bx");
+            for(int i=0;i<16;i+=4){
+                Log.e(TAG, bx[i]+" "+bx[i+1]+" "+bx[i+2]+" "+bx[i+3]);
+            }
+//            float[] que=MatrixTool.rotationtoquen(bx);
+//            for(int i=0;i<4;i++){
+//                System.out.println(que[i]);
+//            }
+            anchor=session.createAnchor(new Pose(MatrixTool.gettranslate(bx),MatrixTool.rotationtoquen(bx)));
+
+            Log.e(TAG,anchor.getPose().toString());
+//            float[] xx=new float[16];
+//            float[] point={0,1,0,0,
+//                    0,0,1,0,
+//                    0,0,0,1,
+//                    1,1,1,1};
+//            Matrix.multiplyMM(xx,0,point,0,a,0 );
+//            Log.e(TAG, "xx");
+//            for(int i=0;i<16;i+=4){
+//                Log.e(TAG, xx[i]+" "+xx[i+1]+" "+xx[i+2]+" "+xx[i+3]);
+//            }
+//            Log.e(TAG, "a");
+//            for(int i=0;i<16;i+=4){
+//                Log.e(TAG, a[i]+" "+a[i+1]+" "+a[i+2]+" "+a[i+3]);
+//            }
+//            Log.e(TAG, "modelMatrix");
+//            for(int i=0;i<16;i+=4){
+//                Log.e(TAG, modelMatrix[i]+" "+modelMatrix[i+1]+" "+modelMatrix[i+2]+" "+modelMatrix[i+3]);
+//            }
+//            float[] x2=new float[16];
+//            Matrix.multiplyMM(x2,0,point,0,modelMatrix,0 );
+//            Log.e(TAG, "x2");
+//            for(int i=0;i<16;i+=4){
+//                Log.e(TAG, x2[i]+" "+x2[i+1]+" "+x2[i+2]+" "+x2[i+3]);
+//            }
+//            Log.e(TAG, "displaypose");
+//            for(int i=0;i<16;i+=4){
+//                Log.e(TAG, displaypose[i]+" "+displaypose[i+1]+" "+displaypose[i+2]+" "+displaypose[i+3]);
+//            }
+//            Log.e(TAG, "pos");
+//            for(int i=0;i<16;i+=4){
+//                Log.e(TAG, pos[i]+" "+pos[i+1]+" "+pos[i+2]+" "+pos[i+3]);
+//            }
+
+            anchor.getPose().toMatrix(modelMatrix,0);
+            Log.e(TAG, "modelMatrix");
+            for(int i=0;i<4;i++){
+                Log.e(TAG, modelMatrix[i]+" "+modelMatrix[i+4]+" "+modelMatrix[i+8]+" "+modelMatrix[i+12]);
+            }
+
+            Matrix.multiplyMM(modelViewMatrix,0,viewMatrix,0,modelMatrix,0 );
+            Matrix.multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0,modelViewMatrix, 0);
+            objectShader.setMat4("u_ModelView", modelViewMatrix);
+            objectShader.setMat4("u_ModelViewProjection", modelViewProjectionMatrix);
+            render.draw(objectMesh, objectShader);
+//            cubeShader.setMat4("u_ModelViewProjection", modelViewProjectionMatrix);
+//            render.draw(cubeMesh, cubeShader);
+
+        }else if(dectectorTool.isAlreadyreco()){
+            //Log.e(TAG,"正在跟踪。。。");
+            //anchor.getPose().toMatrix(modelMatrix, 0);
+            //Matrix.multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0);
+            //Matrix.multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, modelViewMatrix, 0);
+//            cubeShader.setMat4("u_ModelViewProjection", modelViewProjectionMatrix);
+//            render.draw(cubeMesh, cubeShader);
+//            objectShader.setMat4("u_ModelViewProjection", modelViewProjectionMatrix);
+//            render.draw(objectMesh, objectShader);
+
+//            float[] rot=new float[]{1,0,0,0,
+//                    0,-1,0,0
+//                    ,0,0,-1,0
+//                    ,0,0,0,1};
+            anchor.getPose().toMatrix(modelMatrix,0);
+//                        float[] pos1=new float[16];
+//            float[] posque1=anchor.getPose().getRotationQuaternion();
+//            float[] posquet1=anchor.getPose().getTranslation();
+//            MatrixTool.floattofloat(MatrixTool.queutoMatrix(posque1),posquet1,pos1);
+//            Log.e(TAG, "anchor的位置对应a");
+//            for(int i=0;i<16;i+=4){
+//                Log.e(TAG, pos1[i]+" "+pos1[i+1]+" "+pos1[i+2]+" "+pos1[i+3]);
+//            }
+//            Log.e(TAG, "anchor位置对应a");
+//            for(int i=0;i<16;i+=4){
+//                Log.e(TAG, modelMatrix[i]+" "+modelMatrix[i+1]+" "+modelMatrix[i+2]+" "+modelMatrix[i+3]);
+//            }
+            //Matrix.multiplyMM(modelMatrix,0,rot,0,dectectorTool.getRT(),0 );
+            Matrix.multiplyMM(modelViewMatrix,0,viewMatrix,0,modelMatrix,0 );
+//            Log.e(TAG, "modelviewd对应");
+//            for(int i=0;i<16;i+=4){
+//                Log.e(TAG, modelViewMatrix[i]+" "+modelViewMatrix[i+1]+" "+modelViewMatrix[i+2]+" "+modelViewMatrix[i+3]);
+//            }
+            Matrix.multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0,modelViewMatrix, 0);
+            objectShader.setMat4("u_ModelView", modelViewMatrix);
+            objectShader.setMat4("u_ModelViewProjection", modelViewProjectionMatrix);
+            render.draw(objectMesh, objectShader);
+//            cubeShader.setMat4("u_ModelViewProjection", modelViewProjectionMatrix);
+//            render.draw(cubeMesh, cubeShader);
+        }else return ;
 
         // Visualize tracked points.
         // Use try-with-resources to automatically release the point cloud.
@@ -412,8 +689,20 @@ public class MainActivity extends AppCompatActivity implements SampleRender.Rend
             render.draw(pointCloudMesh, pointCloudShader);
         }
         //if(vectrics.isDirect()) Log.e(TAG," sdf");
+        //Matrix.multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, DectectorTool.pose, 0);
+
+        //Matrix.multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, DectectorTool.pose4, 0);
+//        for(int j=0;j<modelViewProjectionMatrix.length;j++){
+//            Log.e(TAG,"modelViewProjectionMatrix "+j+" : "+viewMatrix[j]);
+//        }
         cubeShader.setMat4("u_ModelViewProjection", modelViewProjectionMatrix);
         render.draw(cubeMesh, cubeShader);
+//
+//        Matrix.multiplyMM(modelViewMatrix,0,viewMatrix,0,modelMatrix,0 );
+//        Matrix.multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, modelViewMatrix, 0);
+//        objectShader.setMat4("u_ModelViewProjection", modelViewProjectionMatrix);
+//        render.draw(objectMesh, objectShader);
+
 
     }
     private void configureSession() {

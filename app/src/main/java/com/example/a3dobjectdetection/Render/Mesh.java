@@ -47,7 +47,7 @@ public class Mesh implements Closeable {
         this.indexBuffer = indexBuffer;
         this.vertexBuffers = vertexBuffers;
 
-        GLES30.glLineWidth( 3f );
+        GLES30.glLineWidth( 10f );
 
         try {
             // Create vertex array

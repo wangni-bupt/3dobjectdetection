@@ -39,10 +39,11 @@ public class SolverPnP {
     }
 
 
-    public static void Solver(MatOfPoint3f objectPoints, MatOfPoint2f imagePoints, Mat cameraMatrix, MatOfDouble distCoeffs, Mat rvec, Mat tvec){
+    public static boolean Solver(MatOfPoint3f objectPoints, MatOfPoint2f imagePoints, Mat cameraMatrix, MatOfDouble distCoeffs, Mat rvec, Mat tvec){
         long startTime = System.currentTimeMillis(); // 获取开始时间
-        Calib3d.solvePnPRansac(objectPoints,imagePoints,cameraMatrix,distCoeffs,rvec,tvec);
+        boolean revl=Calib3d.solvePnPRansac(objectPoints,imagePoints,cameraMatrix,distCoeffs,rvec,tvec);
         long endTime = System.currentTimeMillis(); // 获取结束时间
         Log.e("Solver","pnp求解时间"+ (endTime - startTime) + "ms");
+        return revl;
     }
 }

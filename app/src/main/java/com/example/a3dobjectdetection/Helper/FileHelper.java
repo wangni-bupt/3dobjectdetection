@@ -49,7 +49,7 @@ public class FileHelper {
     }
 
     public FloatBuffer getTxtFromAssets(AssetManager assetManager, String fileName) {
-        FloatBuffer floatBuffer= ByteBuffer.allocateDirect(96).order(ByteOrder.nativeOrder())
+        FloatBuffer floatBuffer= ByteBuffer.allocateDirect(3881*3*4).order(ByteOrder.nativeOrder())
                 .asFloatBuffer();
         try {
             InputStream inputStream =assetManager.open(fileName);
